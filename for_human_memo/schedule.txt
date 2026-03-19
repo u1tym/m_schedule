@@ -1,0 +1,134 @@
+DBはPostgreSQLで、既存で、レイアウトは以下
+
+DBの接続先は、.envで作成して。
+初期値は、
+Server: localhost
+Database: tamtdb
+Port: 5432
+Username: tamtuser
+Password: TAMTTAMT
+にして
+
+
+Table "public.activity_categories"
+   Column   |            Type             | Collation | Nullable |                     Default
+------------+-----------------------------+-----------+----------+-------------------------------------------------
+ id         | integer                     |           | not null | nextval('activity_categories_id_seq'::regclass)
+ name       | character varying           |           | not null |
+ is_deleted | boolean                     |           | not null |
+ created_at | timestamp without time zone |           | not null | now()
+ updated_at | timestamp without time zone |           | not null | now()
+Indexes:
+    "activity_categories_pkey" PRIMARY KEY, btree (id)
+    "ix_activity_categories_id" btree (id)
+Referenced by:
+    TABLE "schedules" CONSTRAINT "schedules_activity_category_id_fkey" FOREIGN KEY (activity_category_id) REFERENCES activity_categories(id)
+
+
+Table "public.holidays"
+   Column   |            Type             | Collation | Nullable |               Default
+------------+-----------------------------+-----------+----------+--------------------------------------
+ id         | integer                     |           | not null | nextval('holidays_id_seq'::regclass)
+ date       | date                        |           | not null |
+ name       | character varying           |           | not null |
+ created_at | timestamp without time zone |           |          |
+ updated_at | timestamp without time zone |           |          |
+Indexes:
+    "holidays_pkey" PRIMARY KEY, btree (id)
+    "idx_holidays_date" btree (date)
+    "ix_holidays_date" UNIQUE, btree (date)
+    "ix_holidays_id" btree (id)
+
+
+Table "public.schedules"
+        Column        |            Type             | Collation | Nullable |                Default
+----------------------+-----------------------------+-----------+----------+---------------------------------------
+ id                   | integer                     |           | not null | nextval('schedules_id_seq'::regclass)
+ title                | character varying           |           | not null |
+ start_datetime       | timestamp without time zone |           | not null |
+ duration             | integer                     |           | not null |
+ is_all_day           | boolean                     |           | not null |
+ activity_category_id | integer                     |           | not null |
+ schedule_type        | character varying           |           | not null |
+ location             | character varying           |           |          |
+ details              | text                        |           |          |
+ is_todo_completed    | boolean                     |           | not null |
+ is_deleted           | boolean                     |           | not null |
+ created_at           | timestamp without time zone |           | not null | now()
+ updated_at           | timestamp without time zone |           | not null | now()
+Indexes:
+    "schedules_pkey" PRIMARY KEY, btree (id)
+    "ix_schedules_id" btree (id)
+Foreign-key constraints:
+    "schedules_activity_category_id_fkey" FOREIGN KEY (activity_category_id) REFERENCES activity_categories(id)
+
+
+activity_categoriesには、スケジュールの種類を表すものを格納する。
+holidaysには、土日以外の祝日と、その名称を格納する。
+
+schedulesには、スケジュールを格納する。
+titleにはスケジュールの名称を入れる。
+日単位のスケジュールの場合には、is_all_dayにtrueを入れ、start_datetimeに開始日（時刻は0時0分0秒）、durationに日数を入れる。
+日単位ではない（＝分単位）スケジュールの場合には、is_all_dayにfalseを入れ、start_datetimeに開始日時（秒は0）、durationに分数を入れる。
+schedule_typeには、「予定」または「TODO」の文字列を入れる。
+locationには、そのスケジュールに関する場所を文字列で入れる。
+detailsには、詳細情報を文字列で入れる。
+is_todo_completedは、schedule_typeがTODOの場合に、そのTODOを完了したか否かをtrue/falseで入れる。
+is_deletedは、削除フラグ。
+
+pythonで、型ヒント句付けて
+fastapiで以下を作成して。
+
+1) activity_categoriesの一覧取得処理
+
+2) activity_categoriesの登録処理
+
+3) activity_categoriesの削除処理
+   指定されたものの削除フラグを立てる
+
+4) holidaysの一覧取得処理
+   期間(自)、期間(至)として、年月日を指定すると、その期間の祝日を返す。
+   期間を指定せずに、すべて取得することも可能。
+
+5) holidaysの追加処理
+
+6) 期間指定でのschedules一覧取得処理
+   期間(自)、期間(至)として、年月日を指定する。
+   期間(自) 00:00～期間(至) 23:59に掛かるスケジュールの一覧を取得する。
+   
+   返す値は以下
+   ・スケジュールのID
+   ・名称
+   ・スケジュールの種類
+   ・日単位か否か
+   ・（日単位の場合）開始日、終了日
+   ・（分単位の場合）開始日時、終了日時
+   ・「予定」か「TODO」か
+   ・（TODOの場合）TODO完了済か否か
+
+7) scheduleを1件取得
+   スケジュールのIDを指定して、1件取得する
+   返す値は以下
+   ・スケジュールのID
+   ・名称
+   ・スケジュールの種類
+   ・日単位か否か
+   ・（日単位の場合）開始日、終了日
+   ・（分単位の場合）開始日時、終了日時
+   ・「予定」か「TODO」か
+   ・（TODOの場合）TODO完了済か否か
+   ・場所
+   ・詳細情報
+
+8) scheduleの登録
+
+9) scheduleの更新
+
+10) scheduleの削除
+    指定されたものの削除フラグを立てる
+
+
+DBレイアウトとAPIの仕様を、他の生成AIでも理解できるようにまとめて、別ファイルで出力して。
+
+
+
