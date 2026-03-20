@@ -1,6 +1,9 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -10,7 +13,14 @@ class Settings(BaseSettings):
     db_username: str
     db_password: str
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    log_dir: str = "logs"
+    log_backup_count: int = 30
+    log_level: str = "INFO"
+
+    model_config = SettingsConfigDict(
+        env_file=str(_PROJECT_ROOT / ".env"),
+        env_file_encoding="utf-8",
+    )
 
     @property
     def sqlalchemy_database_url(self) -> str:

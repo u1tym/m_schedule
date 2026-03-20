@@ -1,10 +1,21 @@
+import logging
+from contextlib import asynccontextmanager
 from datetime import date, datetime, time
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.exception_handlers import (
+    http_exception_handler as default_http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import get_settings
 from app.db import get_db
+from app.logging_setup import configure_logging
+from app.middleware_request_log import RequestLoggingMiddleware
 from app.models import ActivityCategory, Holiday, Schedule
 from app.schemas import (
     ActivityCategoryCreate,
@@ -18,7 +29,54 @@ from app.schemas import (
     schedule_occupancy_range,
 )
 
-app = FastAPI(title="m_schedule API")
+err_log = logging.getLogger("app.error")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    configure_logging(get_settings())
+    yield
+
+
+app = FastAPI(title="m_schedule API", lifespan=lifespan)
+app.add_middleware(RequestLoggingMiddleware)
+
+
+@app.exception_handler(HTTPException)
+async def logging_http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    err_log.warning(
+        "HTTPException status=%s detail=%s method=%s path=%s query=%s",
+        exc.status_code,
+        exc.detail,
+        request.method,
+        request.url.path,
+        request.url.query or "-",
+    )
+    return await default_http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def logging_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    err_log.warning(
+        "RequestValidationError method=%s path=%s query=%s errors=%s body=%s",
+        request.method,
+        request.url.path,
+        request.url.query or "-",
+        exc.errors(),
+        exc.body,
+    )
+    return await request_validation_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def logging_unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    err_log.exception(
+        "unhandled_exception method=%s path=%s query=%s",
+        request.method,
+        request.url.path,
+        request.url.query or "-",
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 def validate_all_day_start(payload_start_datetime: datetime, is_all_day: bool) -> None:
