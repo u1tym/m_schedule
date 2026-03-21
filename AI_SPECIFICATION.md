@@ -1,8 +1,8 @@
-# m_schedule DB Layout and API Specification
+# m_schedule データベース構成と API 仕様
 
-## 1. Environment Variables
+## 1. 環境変数
 
-The API reads DB connection settings from `.env`.
+API は DB 接続設定を `.env` から読み取ります。
 
 ```env
 DB_SERVER=localhost
@@ -12,26 +12,28 @@ DB_USERNAME=tamtuser
 DB_PASSWORD=TAMTTAMT
 ```
 
-Connection string pattern:
+接続文字列の形式:
 
 `postgresql+psycopg2://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}:{DB_PORT}/{DB_NAME}`
 
-## 2. Database Layout
+（ログ用の任意項目 `LOG_DIR` / `LOG_LEVEL` / `LOG_BACKUP_COUNT` については README を参照。）
+
+## 2. データベース構成
 
 ### 2.1 `activity_categories`
 
-- Purpose: stores schedule category master data.
-- Columns:
+- 用途: スケジュールのカテゴリマスタ。
+- カラム:
   - `id`: integer, PK
   - `name`: varchar, not null
-  - `is_deleted`: boolean, not null (soft-delete flag)
-  - `created_at`: timestamp, not null, default `now()`
-  - `updated_at`: timestamp, not null, default `now()`
+  - `is_deleted`: boolean, not null（論理削除）
+  - `created_at`: timestamp, not null, 既定 `now()`
+  - `updated_at`: timestamp, not null, 既定 `now()`
 
 ### 2.2 `holidays`
 
-- Purpose: stores non-weekend holidays and holiday names.
-- Columns:
+- 用途: 祝日など（週末以外の休日と名称）。
+- カラム:
   - `id`: integer, PK
   - `date`: date, not null, unique
   - `name`: varchar, not null
@@ -40,54 +42,54 @@ Connection string pattern:
 
 ### 2.3 `schedules`
 
-- Purpose: stores schedules and TODO items.
-- Columns:
+- 用途: スケジュールおよび TODO。
+- カラム:
   - `id`: integer, PK
   - `title`: varchar, not null
   - `start_datetime`: timestamp, not null
   - `duration`: integer, not null
   - `is_all_day`: boolean, not null
-  - `activity_category_id`: integer, FK -> `activity_categories.id`
-  - `schedule_type`: varchar, not null (`"予定"` or `"TODO"`)
+  - `activity_category_id`: integer, FK → `activity_categories.id`
+  - `schedule_type`: varchar, not null（`"予定"` または `"TODO"`）
   - `location`: varchar, nullable
   - `details`: text, nullable
   - `is_todo_completed`: boolean, not null
-  - `is_deleted`: boolean, not null (soft-delete flag)
-  - `created_at`: timestamp, not null, default `now()`
-  - `updated_at`: timestamp, not null, default `now()`
+  - `is_deleted`: boolean, not null（論理削除）
+  - `created_at`: timestamp, not null, 既定 `now()`
+  - `updated_at`: timestamp, not null, 既定 `now()`
 
-## 3. Business Rules
+## 3. 業務ルール
 
-### 3.1 All-day schedule
+### 3.1 終日スケジュール
 
 - `is_all_day = true`
-- `start_datetime` must be `00:00:00`
-- `duration` means days
-- End date = start date + (`duration` - 1) days
+- `start_datetime` は `00:00:00` であること
+- `duration` は日数
+- 終了日 = 開始日 + (`duration` - 1) 日
 
-### 3.2 Minute-based schedule
+### 3.2 分単位スケジュール
 
 - `is_all_day = false`
-- `start_datetime` includes date and time, and seconds must be `00`
-- `duration` means minutes
-- End datetime = start datetime + `duration` minutes
+- `start_datetime` は日付と時刻を含み、秒は `00` であること
+- `duration` は分
+- 終了日時 = 開始日時 + `duration` 分
 
-### 3.3 TODO behavior
+### 3.3 TODO の扱い
 
-- `schedule_type` is `"予定"` or `"TODO"`
-- `is_todo_completed` is meaningful for `"TODO"`
+- `schedule_type` は `"予定"` または `"TODO"`
+- `is_todo_completed` は `"TODO"` のときに意味を持つ
 
-## 4. API Endpoints
+## 4. API エンドポイント
 
-Base URL example: `http://localhost:8000`
+ベース URL の例: `http://localhost:8000`
 
-### 4.1 Activity Categories
+### 4.1 活動カテゴリ
 
 1. `GET /activity-categories`
-   - Returns non-deleted categories.
+   - 論理削除されていないカテゴリ一覧を返す。
 
 2. `POST /activity-categories`
-   - Body:
+   - リクエストボディ例:
      ```json
      {
        "name": "会議"
@@ -95,17 +97,17 @@ Base URL example: `http://localhost:8000`
      ```
 
 3. `DELETE /activity-categories/{category_id}`
-   - Soft-delete (`is_deleted = true`).
+   - 論理削除（`is_deleted = true`）。
 
-### 4.2 Holidays
+### 4.2 祝日
 
 4. `GET /holidays?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
-   - Both query params are optional.
-   - If omitted, returns all holidays.
-   - If specified, returns holidays in inclusive range.
+   - 両方のクエリは任意。
+   - 省略時は全祝日。
+   - 指定時は両端を含む範囲で返す。
 
 5. `POST /holidays`
-   - Body:
+   - リクエストボディ例:
      ```json
      {
        "date": "2026-01-01",
@@ -113,31 +115,48 @@ Base URL example: `http://localhost:8000`
      }
      ```
 
-### 4.3 Schedules
+### 4.3 スケジュール
 
 6. `GET /schedules?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
-   - Required: `from_date`, `to_date`
-   - Returns schedules overlapping:
-     - from_date `00:00` to to_date `23:59` (inclusive)
-   - Response item includes:
+   - 必須: `from_date`, `to_date`
+   - 次の期間と重なるスケジュールを返す:
+     - `from_date` の `00:00` から `to_date` の `23:59` まで（両端含む）
+   - レスポンスの各要素に含まれるもの:
      - `id`
      - `title`
      - `activity_category_id`
      - `activity_category_name`
      - `is_all_day`
-     - all-day: `start_date`, `end_date`
-     - minute-based: `start_datetime`, `end_datetime`
-     - `schedule_type` (`"予定"` or `"TODO"`)
-     - for TODO: `is_todo_completed`
+     - 終日: `start_date`, `end_date`
+     - 分単位: `start_datetime`, `end_datetime`
+     - `schedule_type`（`"予定"` または `"TODO"`）
+     - TODO の場合: `is_todo_completed`
 
-7. `GET /schedules/{schedule_id}`
-   - Returns one schedule by ID.
-   - Includes fields from (6) plus:
-     - `location`
-     - `details`
+7. `GET /schedules/todo-alerts?ref_date=YYYY-MM-DD`
+   - **注意喚起対象 TODO 取得**（`schedule_type` が `"TODO"` の行のみ。`"予定"` は返さない）。
+   - 必須: `ref_date`（基準日。当日などを指定する想定）
+   - **返す条件**（いずれかに該当し、かつ削除済みカテゴリに紐づく行は除外。論理削除済みスケジュールも除外）:
+     1. **過去の未完了**: 占有区間の開始が基準日の `00:00` より前で、かつ `is_todo_completed` が false。
+     2. **基準日からのウィンドウ**: 占有区間が、基準日 `00:00` から **基準日 + 3 日** の `23:59` まで（基準日を含む **4 暦日**）と重なる。完了・未完了の両方を含む。
+   - 占有区間の計算は `GET /schedules` と同じ（終日は日単位、分単位は分で加算）。
+   - レスポンスの各要素:
+     - `id`（スケジュール ID）
+     - `title`（名称）
+     - `schedule_type`（この API では常に `"TODO"`）
+     - `is_all_day`（日単位か否か）
+     - 終日の場合: `start_date`, `end_date`
+     - 分単位の場合: `start_datetime`, `end_datetime`
+     - `is_todo_completed`（TODO の完了済みか否か）
+     - `location`（場所）
+     - `details`（詳細）
+   - 並び順: `start_datetime` 昇順、`id` 昇順。
 
-8. `POST /schedules`
-   - Body example:
+8. `GET /schedules/{schedule_id}`
+   - ID で 1 件取得。
+   - (6) の項目に加え `location`, `details` を含む。
+
+9. `POST /schedules`
+   - リクエストボディ例:
      ```json
      {
        "title": "資料作成",
@@ -152,21 +171,23 @@ Base URL example: `http://localhost:8000`
      }
      ```
 
-9. `PUT /schedules/{schedule_id}`
-   - Same body schema as `POST /schedules`.
+10. `PUT /schedules/{schedule_id}`
+    - リクエストボディは `POST /schedules` と同じスキーマ。
 
-10. `DELETE /schedules/{schedule_id}`
-    - Soft-delete (`is_deleted = true`).
+11. `DELETE /schedules/{schedule_id}`
+    - 論理削除（`is_deleted = true`）。
 
-## 5. Error Handling
+**ルーティング注意:** `GET /schedules/todo-alerts` は `GET /schedules/{schedule_id}` より具体的なパスのため、フレームワーク上は `/schedules/todo-alerts` が先に定義されている必要がある（本実装でその順序になっている）。
 
-- `404`: resource not found.
-- `409`: duplicate holiday date.
-- `422`: validation error (invalid period, invalid datetime for all-day, seconds not zero, etc.).
+## 5. エラー応答
 
-## 6. Implementation Files
+- `404`: リソースが見つからない。
+- `409`: 祝日の日付の重複。
+- `422`: バリデーションエラー（期間不正、終日の開始時刻不正、秒が 0 でないなど）。
 
-- FastAPI app entrypoint: `app/main.py`
-- SQLAlchemy models: `app/models.py`
-- Pydantic schemas: `app/schemas.py`
-- DB/session settings: `app/config.py`, `app/db.py`
+## 6. 実装ファイル
+
+- FastAPI エントリ: `app/main.py`
+- SQLAlchemy モデル: `app/models.py`
+- Pydantic スキーマ: `app/schemas.py`
+- DB / セッション: `app/config.py`, `app/db.py`

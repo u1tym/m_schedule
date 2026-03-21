@@ -38,3 +38,4 @@ uvicorn app.main:app --reload
 ## API ドキュメント
 
 - Swagger UI: `http://localhost:8000/docs`
+- 注意喚起用 TODO 一覧: `GET /schedules/todo-alerts?ref_date=YYYY-MM-DD`（詳細は `AI_SPECIFICATION.md`）

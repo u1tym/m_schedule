@@ -25,8 +25,11 @@ from app.schemas import (
     ScheduleCreate,
     ScheduleResponse,
     ScheduleUpdate,
+    TodoAlertItemResponse,
     build_schedule_response,
+    build_todo_alert_item,
     schedule_occupancy_range,
+    todo_matches_alert_window,
 )
 
 err_log = logging.getLogger("app.error")
@@ -206,6 +209,50 @@ def list_schedules_in_period(
                 )
             )
     return response
+
+
+@app.get("/schedules/todo-alerts", response_model=list[TodoAlertItemResponse])
+def list_todo_alerts(
+    ref_date: date = Query(description="基準日（例: 当日） YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+) -> list[TodoAlertItemResponse]:
+    """注意喚起対象の TODO を返す（予定タイプは含めない）。"""
+    schedules = list(
+        db.scalars(
+            select(Schedule)
+            .options(joinedload(Schedule.activity_category))
+            .where(Schedule.is_deleted.is_(False))
+            .order_by(Schedule.start_datetime.asc(), Schedule.id.asc())
+        )
+    )
+
+    out: list[TodoAlertItemResponse] = []
+    for item in schedules:
+        if item.activity_category is None or item.activity_category.is_deleted:
+            continue
+        if not todo_matches_alert_window(
+            schedule_type=item.schedule_type,
+            is_todo_completed=item.is_todo_completed,
+            start_datetime_value=item.start_datetime,
+            duration=item.duration,
+            is_all_day=item.is_all_day,
+            ref_date=ref_date,
+        ):
+            continue
+        out.append(
+            build_todo_alert_item(
+                schedule_id=item.id,
+                title=item.title,
+                start_datetime_value=item.start_datetime,
+                duration=item.duration,
+                is_all_day=item.is_all_day,
+                schedule_type=item.schedule_type,  # type: ignore[arg-type]
+                is_todo_completed=item.is_todo_completed,
+                location=item.location,
+                details=item.details,
+            )
+        )
+    return out
 
 
 @app.get("/schedules/{schedule_id}", response_model=ScheduleResponse)

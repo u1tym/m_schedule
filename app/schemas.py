@@ -142,3 +142,85 @@ def schedule_occupancy_range(start_datetime_value: datetime, duration: int, is_a
     start_dt = start_datetime_value
     end_dt = start_datetime_value + timedelta(minutes=duration)
     return start_dt, end_dt
+
+
+# 注意喚起: 基準日からこの日数ぶんの暦日までを「3日以内」ウィンドウの終端とする（基準日含む4暦日と重なるか）。
+TODO_ALERT_WINDOW_LAST_DAY_OFFSET_DAYS: int = 3
+
+
+class TodoAlertItemResponse(BaseModel):
+    id: int
+    title: str
+    schedule_type: SCHEDULE_TYPE
+    is_all_day: bool
+    start_date: date | None = None
+    end_date: date | None = None
+    start_datetime: datetime | None = None
+    end_datetime: datetime | None = None
+    is_todo_completed: bool | None = None
+    location: str | None = None
+    details: str | None = None
+
+
+def build_todo_alert_item(
+    *,
+    schedule_id: int,
+    title: str,
+    start_datetime_value: datetime,
+    duration: int,
+    is_all_day: bool,
+    schedule_type: SCHEDULE_TYPE,
+    is_todo_completed: bool,
+    location: str | None = None,
+    details: str | None = None,
+) -> TodoAlertItemResponse:
+    if is_all_day:
+        start_day: date = start_datetime_value.date()
+        end_day: date = start_day + timedelta(days=duration - 1)
+        return TodoAlertItemResponse(
+            id=schedule_id,
+            title=title,
+            schedule_type=schedule_type,
+            is_all_day=True,
+            start_date=start_day,
+            end_date=end_day,
+            is_todo_completed=is_todo_completed if schedule_type == "TODO" else None,
+            location=location,
+            details=details,
+        )
+
+    end_datetime_value: datetime = start_datetime_value + timedelta(minutes=duration)
+    return TodoAlertItemResponse(
+        id=schedule_id,
+        title=title,
+        schedule_type=schedule_type,
+        is_all_day=False,
+        start_datetime=start_datetime_value,
+        end_datetime=end_datetime_value,
+        is_todo_completed=is_todo_completed if schedule_type == "TODO" else None,
+        location=location,
+        details=details,
+    )
+
+
+def todo_matches_alert_window(
+    *,
+    schedule_type: str,
+    is_todo_completed: bool,
+    start_datetime_value: datetime,
+    duration: int,
+    is_all_day: bool,
+    ref_date: date,
+) -> bool:
+    """`schedule_type` が TODO の行だけ評価し、注意喚起のいずれかに該当すれば True。"""
+    if schedule_type != "TODO":
+        return False
+
+    occ_start, occ_end = schedule_occupancy_range(start_datetime_value, duration, is_all_day)
+    ref_start = datetime.combine(ref_date, time.min)
+    window_last_day = ref_date + timedelta(days=TODO_ALERT_WINDOW_LAST_DAY_OFFSET_DAYS)
+    window_end = datetime.combine(window_last_day, time(hour=23, minute=59))
+
+    past_incomplete = (not is_todo_completed) and (occ_start < ref_start)
+    overlaps_alert_window = occ_end >= ref_start and occ_start <= window_end
+    return past_incomplete or overlaps_alert_window
