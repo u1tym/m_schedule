@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.exception_handlers import (
@@ -13,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import get_settings
+from app.deps import get_current_account_id
 from app.db import get_db
 from app.logging_setup import configure_logging
 from app.middleware_request_log import RequestLoggingMiddleware
@@ -102,7 +104,10 @@ def get_active_category_or_404(db: Session, category_id: int) -> ActivityCategor
 
 
 @app.get("/activity-categories", response_model=list[ActivityCategoryResponse])
-def list_activity_categories(db: Session = Depends(get_db)) -> list[ActivityCategory]:
+def list_activity_categories(
+    _account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> list[ActivityCategory]:
     return list(
         db.scalars(
             select(ActivityCategory)
@@ -113,7 +118,11 @@ def list_activity_categories(db: Session = Depends(get_db)) -> list[ActivityCate
 
 
 @app.post("/activity-categories", response_model=ActivityCategoryResponse, status_code=status.HTTP_201_CREATED)
-def create_activity_category(payload: ActivityCategoryCreate, db: Session = Depends(get_db)) -> ActivityCategory:
+def create_activity_category(
+    payload: ActivityCategoryCreate,
+    _account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> ActivityCategory:
     category = ActivityCategory(name=payload.name, is_deleted=False)
     db.add(category)
     db.commit()
@@ -122,7 +131,11 @@ def create_activity_category(payload: ActivityCategoryCreate, db: Session = Depe
 
 
 @app.delete("/activity-categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_activity_category(category_id: int, db: Session = Depends(get_db)) -> None:
+def delete_activity_category(
+    category_id: int,
+    _account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> None:
     category: ActivityCategory | None = db.scalar(select(ActivityCategory).where(ActivityCategory.id == category_id))
     if category is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity category not found.")
@@ -135,6 +148,7 @@ def delete_activity_category(category_id: int, db: Session = Depends(get_db)) ->
 
 @app.get("/holidays", response_model=list[HolidayResponse])
 def list_holidays(
+    _account_id: Annotated[int, Depends(get_current_account_id)],
     from_date: date | None = Query(default=None, description="YYYY-MM-DD"),
     to_date: date | None = Query(default=None, description="YYYY-MM-DD"),
     db: Session = Depends(get_db),
@@ -152,7 +166,11 @@ def list_holidays(
 
 
 @app.post("/holidays", response_model=HolidayResponse, status_code=status.HTTP_201_CREATED)
-def create_holiday(payload: HolidayCreate, db: Session = Depends(get_db)) -> Holiday:
+def create_holiday(
+    payload: HolidayCreate,
+    _account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> Holiday:
     exists: Holiday | None = db.scalar(select(Holiday).where(Holiday.date == payload.date))
     if exists is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Holiday date already exists.")
@@ -166,6 +184,7 @@ def create_holiday(payload: HolidayCreate, db: Session = Depends(get_db)) -> Hol
 
 @app.get("/schedules", response_model=list[ScheduleResponse])
 def list_schedules_in_period(
+    account_id: Annotated[int, Depends(get_current_account_id)],
     from_date: date = Query(description="YYYY-MM-DD"),
     to_date: date = Query(description="YYYY-MM-DD"),
     db: Session = Depends(get_db),
@@ -180,7 +199,7 @@ def list_schedules_in_period(
         db.scalars(
             select(Schedule)
             .options(joinedload(Schedule.activity_category))
-            .where(Schedule.is_deleted.is_(False))
+            .where(Schedule.is_deleted.is_(False), Schedule.aid == account_id)
             .order_by(Schedule.start_datetime.asc(), Schedule.id.asc())
         )
     )
@@ -206,6 +225,12 @@ def list_schedules_in_period(
                     is_all_day=item.is_all_day,
                     schedule_type=item.schedule_type,  # type: ignore[arg-type]
                     is_todo_completed=item.is_todo_completed,
+                    location=item.location,
+                    details=item.details,
+                    routine_id=item.routine_id,
+                    notified=item.notified,
+                    aid=item.aid,
+                    emailed=item.emailed,
                 )
             )
     return response
@@ -213,6 +238,7 @@ def list_schedules_in_period(
 
 @app.get("/schedules/todo-alerts", response_model=list[TodoAlertItemResponse])
 def list_todo_alerts(
+    account_id: Annotated[int, Depends(get_current_account_id)],
     ref_date: date = Query(description="基準日（例: 当日） YYYY-MM-DD"),
     db: Session = Depends(get_db),
 ) -> list[TodoAlertItemResponse]:
@@ -221,7 +247,7 @@ def list_todo_alerts(
         db.scalars(
             select(Schedule)
             .options(joinedload(Schedule.activity_category))
-            .where(Schedule.is_deleted.is_(False))
+            .where(Schedule.is_deleted.is_(False), Schedule.aid == account_id)
             .order_by(Schedule.start_datetime.asc(), Schedule.id.asc())
         )
     )
@@ -256,11 +282,19 @@ def list_todo_alerts(
 
 
 @app.get("/schedules/{schedule_id}", response_model=ScheduleResponse)
-def get_schedule(schedule_id: int, db: Session = Depends(get_db)) -> ScheduleResponse:
+def get_schedule(
+    schedule_id: int,
+    account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> ScheduleResponse:
     schedule: Schedule | None = db.scalar(
         select(Schedule)
         .options(joinedload(Schedule.activity_category))
-        .where(Schedule.id == schedule_id, Schedule.is_deleted.is_(False))
+        .where(
+            Schedule.id == schedule_id,
+            Schedule.is_deleted.is_(False),
+            Schedule.aid == account_id,
+        )
     )
     if schedule is None or schedule.activity_category is None or schedule.activity_category.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found.")
@@ -276,11 +310,19 @@ def get_schedule(schedule_id: int, db: Session = Depends(get_db)) -> ScheduleRes
         is_todo_completed=schedule.is_todo_completed,
         location=schedule.location,
         details=schedule.details,
+        routine_id=schedule.routine_id,
+        notified=schedule.notified,
+        aid=schedule.aid,
+        emailed=schedule.emailed,
     )
 
 
 @app.post("/schedules", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED)
-def create_schedule(payload: ScheduleCreate, db: Session = Depends(get_db)) -> ScheduleResponse:
+def create_schedule(
+    payload: ScheduleCreate,
+    account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> ScheduleResponse:
     validate_all_day_start(payload.start_datetime, payload.is_all_day)
     category = get_active_category_or_404(db, payload.activity_category_id)
 
@@ -294,6 +336,10 @@ def create_schedule(payload: ScheduleCreate, db: Session = Depends(get_db)) -> S
         location=payload.location,
         details=payload.details,
         is_todo_completed=payload.is_todo_completed,
+        routine_id=payload.routine_id,
+        notified=payload.notified,
+        aid=account_id,
+        emailed=payload.emailed,
         is_deleted=False,
     )
     db.add(schedule)
@@ -312,14 +358,27 @@ def create_schedule(payload: ScheduleCreate, db: Session = Depends(get_db)) -> S
         is_todo_completed=schedule.is_todo_completed,
         location=schedule.location,
         details=schedule.details,
+        routine_id=schedule.routine_id,
+        notified=schedule.notified,
+        aid=schedule.aid,
+        emailed=schedule.emailed,
     )
 
 
 @app.put("/schedules/{schedule_id}", response_model=ScheduleResponse)
-def update_schedule(schedule_id: int, payload: ScheduleUpdate, db: Session = Depends(get_db)) -> ScheduleResponse:
+def update_schedule(
+    schedule_id: int,
+    payload: ScheduleUpdate,
+    account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> ScheduleResponse:
     validate_all_day_start(payload.start_datetime, payload.is_all_day)
     schedule: Schedule | None = db.scalar(
-        select(Schedule).where(Schedule.id == schedule_id, Schedule.is_deleted.is_(False))
+        select(Schedule).where(
+            Schedule.id == schedule_id,
+            Schedule.is_deleted.is_(False),
+            Schedule.aid == account_id,
+        )
     )
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found.")
@@ -334,6 +393,9 @@ def update_schedule(schedule_id: int, payload: ScheduleUpdate, db: Session = Dep
     schedule.location = payload.location
     schedule.details = payload.details
     schedule.is_todo_completed = payload.is_todo_completed
+    schedule.routine_id = payload.routine_id
+    schedule.notified = payload.notified
+    schedule.emailed = payload.emailed
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
@@ -350,12 +412,22 @@ def update_schedule(schedule_id: int, payload: ScheduleUpdate, db: Session = Dep
         is_todo_completed=schedule.is_todo_completed,
         location=schedule.location,
         details=schedule.details,
+        routine_id=schedule.routine_id,
+        notified=schedule.notified,
+        aid=schedule.aid,
+        emailed=schedule.emailed,
     )
 
 
 @app.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_schedule(schedule_id: int, db: Session = Depends(get_db)) -> None:
-    schedule: Schedule | None = db.scalar(select(Schedule).where(Schedule.id == schedule_id))
+def delete_schedule(
+    schedule_id: int,
+    account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> None:
+    schedule: Schedule | None = db.scalar(
+        select(Schedule).where(Schedule.id == schedule_id, Schedule.aid == account_id)
+    )
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found.")
     if schedule.is_deleted:

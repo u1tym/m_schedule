@@ -42,6 +42,9 @@ class ScheduleCreate(BaseModel):
     location: str | None = None
     details: str | None = None
     is_todo_completed: bool = False
+    routine_id: int | None = None
+    notified: bool = False
+    emailed: bool = False
 
     @field_validator("start_datetime")
     @classmethod
@@ -61,6 +64,9 @@ class ScheduleUpdate(BaseModel):
     location: str | None = None
     details: str | None = None
     is_todo_completed: bool = False
+    routine_id: int | None = None
+    notified: bool = False
+    emailed: bool = False
 
     @field_validator("start_datetime")
     @classmethod
@@ -84,6 +90,10 @@ class ScheduleResponse(BaseModel):
     is_todo_completed: bool | None = None
     location: str | None = None
     details: str | None = None
+    routine_id: int | None = None
+    notified: bool = False
+    aid: int | None = None
+    emailed: bool = False
 
 
 def build_schedule_response(
@@ -99,6 +109,10 @@ def build_schedule_response(
     is_todo_completed: bool,
     location: str | None = None,
     details: str | None = None,
+    routine_id: int | None = None,
+    notified: bool = False,
+    aid: int | None = None,
+    emailed: bool = False,
 ) -> ScheduleResponse:
     if is_all_day:
         start_day: date = start_datetime_value.date()
@@ -115,6 +129,10 @@ def build_schedule_response(
             is_todo_completed=is_todo_completed if schedule_type == "TODO" else None,
             location=location,
             details=details,
+            routine_id=routine_id,
+            notified=notified,
+            aid=aid,
+            emailed=emailed,
         )
 
     end_datetime_value: datetime = start_datetime_value + timedelta(minutes=duration)
@@ -130,6 +148,10 @@ def build_schedule_response(
         is_todo_completed=is_todo_completed if schedule_type == "TODO" else None,
         location=location,
         details=details,
+        routine_id=routine_id,
+        notified=notified,
+        aid=aid,
+        emailed=emailed,
     )
 
 

@@ -6,6 +6,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
 
+class Account(Base):
+    __tablename__ = "accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
 class ActivityCategory(Base):
     __tablename__ = "activity_categories"
 
@@ -48,6 +56,14 @@ class Schedule(Base):
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_todo_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    routine_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("plan.routine.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    notified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    aid: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.id"), nullable=True)
+    emailed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
