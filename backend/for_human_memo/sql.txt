@@ -1,0 +1,11 @@
+alter table schedules
+add column notified boolean not null default false;
+
+update schedules
+set notified = true where is_todo_completed = true
+;
+
+update schedules
+set notified = true where schedule_type != 'TODO'
+;
+
