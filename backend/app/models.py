@@ -16,6 +16,7 @@ class Account(Base):
 
 class ActivityCategory(Base):
     __tablename__ = "activity_categories"
+    __table_args__ = {"schema": "calendar"}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -32,6 +33,7 @@ class ActivityCategory(Base):
 
 class Holiday(Base):
     __tablename__ = "holidays"
+    __table_args__ = {"schema": "calendar"}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
@@ -71,7 +73,7 @@ class Routine(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     activity_category_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("activity_categories.id", ondelete="RESTRICT"),
+        ForeignKey("calendar.activity_categories.id", ondelete="RESTRICT"),
         nullable=False,
     )
     adapt_id: Mapped[int] = mapped_column(
@@ -89,6 +91,7 @@ class Routine(Base):
 
 class Schedule(Base):
     __tablename__ = "schedules"
+    __table_args__ = {"schema": "calendar"}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
@@ -96,7 +99,7 @@ class Schedule(Base):
     duration: Mapped[int] = mapped_column(Integer, nullable=False)
     is_all_day: Mapped[bool] = mapped_column(Boolean, nullable=False)
     activity_category_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("activity_categories.id"), nullable=False
+        Integer, ForeignKey("calendar.activity_categories.id"), nullable=False
     )
     schedule_type: Mapped[str] = mapped_column(String, nullable=False)
     location: Mapped[str | None] = mapped_column(String, nullable=True)
