@@ -1,0 +1,13 @@
+以下のテーブルをpublicからcalendarにスキーマを移動しました。
+
+table
+ activity_categories
+ holidays
+ schedules
+
+sequence
+ activity_categories_id_seq
+ holidays_id_seq
+ schedules_id_seq
+ 
+プログラムを修正して。
