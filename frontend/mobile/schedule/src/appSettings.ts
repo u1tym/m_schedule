@@ -2,7 +2,10 @@ import { refreshAccessToken } from './auth'
 import { getConfigApiBaseUrl } from './config'
 
 /** 画面側の月表示モード（API の calender-monthly-type と対応） */
-export type MonthDisplayMode = 'list' | 'calendar'
+export type MonthDisplayMode = 'list' | 'calendar' | 'calendar-pc' | 'none'
+
+/** 設定 UI から選べる月表示モード */
+export type MonthDisplaySelectable = Exclude<MonthDisplayMode, 'none'>
 
 /** 週の始まり（API の calender-weekly-start と対応） */
 export type WeekStartMode = 'sunday' | 'monday'
@@ -59,10 +62,13 @@ export const putAppSettings = async (updates: Record<string, string>): Promise<v
   }
 }
 
-/** box → カレンダー, list → 一覧（未設定・その他は list） */
+/** list → 一覧, box → カレンダー, pcbox → カレンダー（PC用）, その他 → なし */
 export const mapMonthlyTypeToDisplay = (raw: RawAppSettings): MonthDisplayMode => {
   const v = raw[SETTING_KEY_MONTHLY_TYPE]?.trim().toLowerCase()
-  return v === 'box' ? 'calendar' : 'list'
+  if (v === 'list') return 'list'
+  if (v === 'box') return 'calendar'
+  if (v === 'pcbox') return 'calendar-pc'
+  return 'none'
 }
 
 export const mapWeeklyStartToDisplay = (raw: RawAppSettings): WeekStartMode => {
@@ -70,8 +76,15 @@ export const mapWeeklyStartToDisplay = (raw: RawAppSettings): WeekStartMode => {
   return v === 'monday' ? 'monday' : 'sunday'
 }
 
-export const displayModeToMonthlyType = (mode: MonthDisplayMode): string =>
-  mode === 'calendar' ? 'box' : 'list'
+export const displayModeToMonthlyType = (mode: MonthDisplaySelectable): string => {
+  if (mode === 'calendar') return 'box'
+  if (mode === 'calendar-pc') return 'pcbox'
+  return 'list'
+}
 
 export const weekStartModeToWeeklyStart = (mode: WeekStartMode): string =>
   mode === 'monday' ? 'monday' : 'sunday'
+
+/** カレンダー系（週の始まり設定・カレンダー UI）かどうか */
+export const isCalendarDisplayMode = (mode: MonthDisplayMode): boolean =>
+  mode === 'calendar' || mode === 'calendar-pc'

@@ -4,9 +4,11 @@ import { api } from './api'
 import {
   displayModeToMonthlyType,
   fetchAppSettings,
+  isCalendarDisplayMode,
   mapMonthlyTypeToDisplay,
   mapWeeklyStartToDisplay,
   type MonthDisplayMode,
+  type MonthDisplaySelectable,
   putAppSettings,
   type RawAppSettings,
   SETTING_KEY_MONTHLY_TYPE,
@@ -718,16 +720,20 @@ const loadAppSettings = async (): Promise<void> => {
   }
 }
 
-const setMonthDisplayMode = async (mode: MonthDisplayMode): Promise<void> => {
+const setMonthDisplayMode = async (mode: MonthDisplaySelectable): Promise<void> => {
   const previous = monthDisplayMode.value
   monthSettingsError.value = ''
   monthDisplayMode.value = mode
   monthSettingsSaving.value = true
   try {
-    await putAppSettings({ [SETTING_KEY_MONTHLY_TYPE]: displayModeToMonthlyType(mode) })
+    const monthlyType = displayModeToMonthlyType(mode)
+    await putAppSettings({ [SETTING_KEY_MONTHLY_TYPE]: monthlyType })
     rawAppSettings.value = {
       ...rawAppSettings.value,
-      [SETTING_KEY_MONTHLY_TYPE]: displayModeToMonthlyType(mode),
+      [SETTING_KEY_MONTHLY_TYPE]: monthlyType,
+    }
+    if (isCalendarDisplayMode(mode) && !calendarSelectedDayKey.value) {
+      calendarSelectedDayKey.value = toDateKey(new Date())
     }
   } catch (error) {
     monthDisplayMode.value = previous
@@ -927,7 +933,7 @@ const fetchTodoAlertsOnStartup = async (): Promise<void> => {
 
 onMounted(async () => {
   await Promise.all([loadMonthData(), loadAppSettings()])
-  if (viewMode.value === 'month' && monthDisplayMode.value === 'calendar') {
+  if (viewMode.value === 'month' && isCalendarDisplayMode(monthDisplayMode.value)) {
     calendarSelectedDayKey.value = toDateKey(new Date())
   }
   await fetchTodoAlertsOnStartup()
@@ -1047,7 +1053,7 @@ onMounted(async () => {
     </section>
 
     <section
-      v-else-if="viewMode === 'month' && monthDisplayMode === 'calendar'"
+      v-else-if="viewMode === 'month' && isCalendarDisplayMode(monthDisplayMode)"
       class="month-calendar"
       aria-label="月カレンダー"
     >
@@ -1130,8 +1136,15 @@ onMounted(async () => {
       </section>
     </section>
 
+    <p
+      v-else-if="viewMode === 'month' && monthDisplayMode === 'none'"
+      class="message month-display-none"
+    >
+      カレンダーなし
+    </p>
+
     <button
-      v-if="viewMode === 'month' && monthDisplayMode === 'calendar' && calendarSelectedDayKey"
+      v-if="viewMode === 'month' && isCalendarDisplayMode(monthDisplayMode) && calendarSelectedDayKey"
       type="button"
       class="month-cal-fab"
       aria-label="新規スケジュール"
@@ -1300,9 +1313,19 @@ onMounted(async () => {
           />
           カレンダー表示
         </label>
+        <label class="settings-radio">
+          <input
+            type="radio"
+            name="monthDisplay"
+            value="calendar-pc"
+            :checked="monthDisplayMode === 'calendar-pc'"
+            @change="setMonthDisplayMode('calendar-pc')"
+          />
+          カレンダー表示（PC用）
+        </label>
       </fieldset>
       <fieldset
-        v-if="monthDisplayMode === 'calendar'"
+        v-if="isCalendarDisplayMode(monthDisplayMode)"
         class="settings-fieldset"
         :disabled="monthSettingsSaving"
       >
