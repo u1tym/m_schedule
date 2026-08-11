@@ -26,6 +26,7 @@ import type {
 import scheduleIcon from '../images/SCHEDULE.png'
 import portalIcon from '../images/PORTAL.png'
 import configIcon from '../images/CONFIG.png'
+import PcMonthCalendar from './components/PcMonthCalendar.vue'
 
 interface DayRow {
   date: Date
@@ -941,7 +942,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="mobile-root">
+  <main class="mobile-root" :class="{ 'mobile-root--pc-cal': monthDisplayMode === 'calendar-pc' && viewMode === 'month' }">
     <header class="header">
       <div class="header-top">
         <div class="header-leading">
@@ -1053,7 +1054,7 @@ onMounted(async () => {
     </section>
 
     <section
-      v-else-if="viewMode === 'month' && isCalendarDisplayMode(monthDisplayMode)"
+      v-else-if="viewMode === 'month' && monthDisplayMode === 'calendar'"
       class="month-calendar"
       aria-label="月カレンダー"
     >
@@ -1136,6 +1137,18 @@ onMounted(async () => {
       </section>
     </section>
 
+    <PcMonthCalendar
+      v-else-if="viewMode === 'month' && monthDisplayMode === 'calendar-pc'"
+      :current-month="currentMonth"
+      :week-starts-on="weekStartsOn"
+      :holidays="holidays"
+      :schedules="schedules"
+      :category-color-map="categoryColorMap"
+      @open-day="openDayView"
+      @open-edit="openEditDialog"
+      @open-create="openCreateDialog"
+    />
+
     <p
       v-else-if="viewMode === 'month' && monthDisplayMode === 'none'"
       class="message month-display-none"
@@ -1144,7 +1157,7 @@ onMounted(async () => {
     </p>
 
     <button
-      v-if="viewMode === 'month' && isCalendarDisplayMode(monthDisplayMode) && calendarSelectedDayKey"
+      v-if="viewMode === 'month' && monthDisplayMode === 'calendar' && calendarSelectedDayKey"
       type="button"
       class="month-cal-fab"
       aria-label="新規スケジュール"
