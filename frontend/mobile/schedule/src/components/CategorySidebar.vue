@@ -183,13 +183,21 @@ watch(
     </div>
 
     <label class="pc-category-switch">
-      <input
-        type="checkbox"
-        :checked="showDeleted"
-        :disabled="saving"
-        @change="emit('update:showDeleted', ($event.target as HTMLInputElement).checked)"
-      />
-      削除済みを表示
+      <span class="pc-category-switch-label">削除済みを表示</span>
+      <span class="pc-category-switch-control" :class="{ 'pc-category-switch-control--on': showDeleted }">
+        <input
+          type="checkbox"
+          class="pc-category-switch-input"
+          role="switch"
+          :checked="showDeleted"
+          :disabled="saving"
+          :aria-checked="showDeleted"
+          @change="emit('update:showDeleted', ($event.target as HTMLInputElement).checked)"
+        />
+        <span class="pc-category-switch-track" aria-hidden="true">
+          <span class="pc-category-switch-thumb" />
+        </span>
+      </span>
     </label>
 
     <p v-if="errorMessage" class="message error pc-category-error">{{ errorMessage }}</p>
@@ -240,51 +248,74 @@ watch(
           </div>
         </template>
         <template v-else>
-          <button
-            type="button"
-            class="pc-category-row"
-            :disabled="saving || item.is_deleted"
-            :title="item.is_deleted ? '削除済み' : isHidden(item.id) ? '非表示（クリックで表示）' : '表示中（クリックで非表示）'"
-            @click="onRowClick(item)"
-          >
-            <span
-              class="pc-category-swatch"
-              :style="{ backgroundColor: resolveCategoryBgColor(item.bg_color) }"
-              aria-hidden="true"
-            />
-            <span class="pc-category-name" :class="{ 'pc-category-name--strike': item.is_deleted }">
-              {{ item.name }}
-            </span>
-            <span v-if="!item.is_deleted && isHidden(item.id)" class="pc-category-hidden-mark">非表示</span>
-          </button>
-          <div class="pc-category-item-actions">
+          <div class="pc-category-row-line">
             <button
-              v-if="!item.is_deleted"
               type="button"
-              class="pc-category-action"
-              :disabled="saving"
-              @click="startEdit(item, $event)"
+              class="pc-category-row"
+              :disabled="saving || item.is_deleted"
+              :title="item.is_deleted ? '削除済み' : isHidden(item.id) ? '非表示（クリックで表示）' : '表示中（クリックで非表示）'"
+              @click="onRowClick(item)"
             >
-              編集
+              <span
+                class="pc-category-swatch"
+                :style="{ backgroundColor: resolveCategoryBgColor(item.bg_color) }"
+                aria-hidden="true"
+              />
+              <span class="pc-category-name" :class="{ 'pc-category-name--strike': item.is_deleted }">
+                {{ item.name }}
+              </span>
+              <span v-if="!item.is_deleted && isHidden(item.id)" class="pc-category-hidden-mark">非表示</span>
             </button>
-            <button
-              v-if="!item.is_deleted"
-              type="button"
-              class="pc-category-action danger"
-              :disabled="saving"
-              @click="softDelete(item, $event)"
-            >
-              削除
-            </button>
-            <button
-              v-if="item.is_deleted"
-              type="button"
-              class="pc-category-action primary"
-              :disabled="saving"
-              @click="restore(item, $event)"
-            >
-              復活
-            </button>
+            <div class="pc-category-item-actions">
+              <button
+                v-if="!item.is_deleted"
+                type="button"
+                class="pc-category-icon-btn"
+                :disabled="saving"
+                aria-label="編集"
+                title="編集"
+                @click="startEdit(item, $event)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.04a1.003 1.003 0 0 0 0-1.42l-2.5-2.5a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.99-1.66z"
+                  />
+                </svg>
+              </button>
+              <button
+                v-if="!item.is_deleted"
+                type="button"
+                class="pc-category-icon-btn pc-category-icon-btn--danger"
+                :disabled="saving"
+                aria-label="削除"
+                title="削除"
+                @click="softDelete(item, $event)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                  />
+                </svg>
+              </button>
+              <button
+                v-if="item.is_deleted"
+                type="button"
+                class="pc-category-icon-btn pc-category-icon-btn--restore"
+                :disabled="saving"
+                aria-label="復活"
+                title="復活"
+                @click="restore(item, $event)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
         </template>
       </li>
