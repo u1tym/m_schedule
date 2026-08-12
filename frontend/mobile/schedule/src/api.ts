@@ -53,8 +53,32 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 }
 
 export const api = {
-  getActivityCategories(): Promise<ActivityCategory[]> {
-    return request<ActivityCategory[]>('/activity-categories')
+  getActivityCategories(includeDeleted = false): Promise<ActivityCategory[]> {
+    const query = includeDeleted ? '?include_deleted=true' : ''
+    return request<ActivityCategory[]>(`/activity-categories${query}`)
+  },
+
+  createActivityCategory(payload: { name: string; bg_color: string }): Promise<ActivityCategory> {
+    return request<ActivityCategory>('/activity-categories', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  updateActivityCategory(
+    id: number,
+    payload: { name: string; bg_color: string; is_deleted: boolean },
+  ): Promise<ActivityCategory> {
+    return request<ActivityCategory>(`/activity-categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  deleteActivityCategory(id: number): Promise<void> {
+    return request<void>(`/activity-categories/${id}`, {
+      method: 'DELETE',
+    })
   },
 
   getHolidays(fromDate: string, toDate: string): Promise<Holiday[]> {

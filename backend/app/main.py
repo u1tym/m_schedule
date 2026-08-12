@@ -22,6 +22,7 @@ from app.models import ActivityCategory, Holiday, Schedule
 from app.schemas import (
     ActivityCategoryCreate,
     ActivityCategoryResponse,
+    ActivityCategoryUpdate,
     HolidayCreate,
     HolidayResponse,
     ScheduleCreate,
@@ -103,18 +104,37 @@ def get_active_category_or_404(db: Session, category_id: int) -> ActivityCategor
     return category
 
 
+def ensure_unique_active_category_name(
+    db: Session,
+    name: str,
+    *,
+    exclude_id: int | None = None,
+) -> None:
+    stmt = select(ActivityCategory).where(
+        ActivityCategory.name == name,
+        ActivityCategory.is_deleted.is_(False),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(ActivityCategory.id != exclude_id)
+    exists = db.scalar(stmt)
+    if exists is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Activity category name already exists.",
+        )
+
+
 @app.get("/activity-categories", response_model=list[ActivityCategoryResponse])
 def list_activity_categories(
     _account_id: Annotated[int, Depends(get_current_account_id)],
+    include_deleted: bool = Query(default=False),
     db: Session = Depends(get_db),
 ) -> list[ActivityCategory]:
-    return list(
-        db.scalars(
-            select(ActivityCategory)
-            .where(ActivityCategory.is_deleted.is_(False))
-            .order_by(ActivityCategory.id.asc())
-        )
-    )
+    stmt = select(ActivityCategory)
+    if not include_deleted:
+        stmt = stmt.where(ActivityCategory.is_deleted.is_(False))
+    stmt = stmt.order_by(ActivityCategory.is_deleted.asc(), ActivityCategory.id.asc())
+    return list(db.scalars(stmt))
 
 
 @app.post("/activity-categories", response_model=ActivityCategoryResponse, status_code=status.HTTP_201_CREATED)
@@ -123,7 +143,38 @@ def create_activity_category(
     _account_id: Annotated[int, Depends(get_current_account_id)],
     db: Session = Depends(get_db),
 ) -> ActivityCategory:
-    category = ActivityCategory(name=payload.name, is_deleted=False)
+    ensure_unique_active_category_name(db, payload.name)
+    category = ActivityCategory(
+        name=payload.name,
+        bg_color=payload.bg_color,
+        is_deleted=False,
+    )
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@app.put("/activity-categories/{category_id}", response_model=ActivityCategoryResponse)
+def update_activity_category(
+    category_id: int,
+    payload: ActivityCategoryUpdate,
+    _account_id: Annotated[int, Depends(get_current_account_id)],
+    db: Session = Depends(get_db),
+) -> ActivityCategory:
+    category: ActivityCategory | None = db.scalar(
+        select(ActivityCategory).where(ActivityCategory.id == category_id)
+    )
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity category not found.")
+
+    will_be_active = not payload.is_deleted
+    if will_be_active:
+        ensure_unique_active_category_name(db, payload.name, exclude_id=category_id)
+
+    category.name = payload.name
+    category.bg_color = payload.bg_color
+    category.is_deleted = payload.is_deleted
     db.add(category)
     db.commit()
     db.refresh(category)

@@ -1,14 +1,57 @@
 from datetime import date, datetime, time, timedelta
 from typing import Literal
+import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 SCHEDULE_TYPE = Literal["予定", "TODO"]
 
+BG_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def validate_bg_color(value: str) -> str:
+    normalized = value.strip()
+    if not BG_COLOR_PATTERN.fullmatch(normalized):
+        raise ValueError("bg_color must be #RRGGBB.")
+    return normalized
+
 
 class ActivityCategoryCreate(BaseModel):
     name: str = Field(min_length=1)
+    bg_color: str = Field(min_length=1, max_length=64)
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("name must not be blank.")
+        return trimmed
+
+    @field_validator("bg_color")
+    @classmethod
+    def bg_color_must_be_hex(cls, value: str) -> str:
+        return validate_bg_color(value)
+
+
+class ActivityCategoryUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    bg_color: str = Field(min_length=1, max_length=64)
+    is_deleted: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("name must not be blank.")
+        return trimmed
+
+    @field_validator("bg_color")
+    @classmethod
+    def bg_color_must_be_hex(cls, value: str) -> str:
+        return validate_bg_color(value)
 
 
 class ActivityCategoryResponse(BaseModel):
@@ -16,6 +59,7 @@ class ActivityCategoryResponse(BaseModel):
 
     id: int
     name: str
+    bg_color: str
     is_deleted: bool
 
 

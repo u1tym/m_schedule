@@ -17,6 +17,7 @@ import {
   weekStartModeToWeeklyStart,
 } from './appSettings'
 import type {
+  ActivityCategory,
   ScheduleDetail,
   ScheduleListItem,
   SchedulePayload,
@@ -27,6 +28,8 @@ import scheduleIcon from '../images/SCHEDULE.png'
 import portalIcon from '../images/PORTAL.png'
 import configIcon from '../images/CONFIG.png'
 import PcMonthCalendar from './components/PcMonthCalendar.vue'
+import CategorySidebar from './components/CategorySidebar.vue'
+import { DEFAULT_CATEGORY_BG_COLOR, resolveCategoryBgColor } from './categoryColor'
 
 interface DayRow {
   date: Date
@@ -82,9 +85,11 @@ interface FormState {
 
 const today = new Date()
 const currentMonth = ref(new Date(today.getFullYear(), today.getMonth(), 1))
-const categories = ref<{ id: number; name: string }[]>([])
+const categories = ref<ActivityCategory[]>([])
 const holidays = ref<Record<string, string>>({})
 const schedules = ref<ScheduleListItem[]>([])
+const hiddenCategoryIds = ref<number[]>([])
+const showDeletedCategories = ref(false)
 
 const isLoading = ref(false)
 const errorMessage = ref('')
@@ -131,8 +136,8 @@ const form = reactive<FormState>({
 })
 
 const weekdays = ['日', '月', '火', '水', '木', '金', '土']
-const categoryColors = ['#e0f2fe', '#dcfce7', '#fef3c7', '#fce7f3', '#ede9fe', '#ffedd5', '#ccfbf1']
-const categoryDotColors = ['#0284c7', '#16a34a', '#d97706', '#db2777', '#7c3aed', '#ea580c', '#0f766e']
+
+const activeCategories = computed(() => categories.value.filter((item) => !item.is_deleted))
 
 const monthLabel = computed(() => {
   const year = currentMonth.value.getFullYear()
@@ -176,18 +181,16 @@ const dayRows = computed<DayRow[]>(() => {
 
 const categoryColorMap = computed(() => {
   const map = new Map<number, string>()
-  categories.value.forEach((category, index) => {
-    map.set(category.id, categoryColors[index % categoryColors.length])
+  categories.value.forEach((category) => {
+    map.set(category.id, resolveCategoryBgColor(category.bg_color))
   })
   return map
 })
 
-const categoryDotColorMap = computed(() => {
-  const map = new Map<number, string>()
-  categories.value.forEach((category, index) => {
-    map.set(category.id, categoryDotColors[index % categoryDotColors.length])
-  })
-  return map
+const pcVisibleSchedules = computed(() => {
+  const hidden = new Set(hiddenCategoryIds.value)
+  if (hidden.size === 0) return schedules.value
+  return schedules.value.filter((item) => !hidden.has(item.activity_category_id))
 })
 
 const toDateKey = (date: Date): string => {
@@ -308,13 +311,13 @@ const rowClass = (row: DayRow): string => {
 }
 
 const backgroundColor = (item: ScheduleListItem): string => {
-  return categoryColorMap.value.get(item.activity_category_id) || '#f3f4f6'
+  return categoryColorMap.value.get(item.activity_category_id) || DEFAULT_CATEGORY_BG_COLOR
 }
 
 const calendarDotColorsForDay = (dateKey: string): string[] => {
   const colors = new Set<string>()
   schedulesForDay(dateKey).forEach((item) => {
-    colors.add(categoryDotColorMap.value.get(item.activity_category_id) || '#2563eb')
+    colors.add(categoryColorMap.value.get(item.activity_category_id) || DEFAULT_CATEGORY_BG_COLOR)
   })
   return Array.from(colors)
 }
@@ -592,7 +595,7 @@ const openCreateDialog = (
   selectedDateForCreate.value = dateKey
   form.title = ''
   form.scheduleType = '予定'
-  form.categoryId = categories.value[0] ? String(categories.value[0].id) : ''
+  form.categoryId = activeCategories.value[0] ? String(activeCategories.value[0].id) : ''
   const allDay = Boolean(options?.allDay)
   form.isAllDay = allDay
   form.startDate = dateKey
@@ -765,6 +768,27 @@ const setWeekStartsOn = async (mode: WeekStartMode): Promise<void> => {
   }
 }
 
+const onCategoriesChanged = async (): Promise<void> => {
+  await loadMonthData({ silent: true })
+}
+
+const onShowDeletedCategoriesChange = async (value: boolean): Promise<void> => {
+  showDeletedCategories.value = value
+  try {
+    categories.value = await api.getActivityCategories(value)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'カテゴリの取得に失敗しました。'
+  }
+}
+
+const toggleHiddenCategory = (categoryId: number): void => {
+  if (hiddenCategoryIds.value.includes(categoryId)) {
+    hiddenCategoryIds.value = hiddenCategoryIds.value.filter((id) => id !== categoryId)
+  } else {
+    hiddenCategoryIds.value = [...hiddenCategoryIds.value, categoryId]
+  }
+}
+
 const loadMonthData = async (options?: { silent?: boolean }): Promise<void> => {
   const silent = Boolean(options?.silent)
   const fromDate = toDateKey(monthRange.value.start)
@@ -775,11 +799,13 @@ const loadMonthData = async (options?: { silent?: boolean }): Promise<void> => {
   }
   try {
     const [categoryData, holidayData, scheduleData] = await Promise.all([
-      api.getActivityCategories(),
+      api.getActivityCategories(showDeletedCategories.value),
       api.getHolidays(fromDate, toDate),
       api.getSchedules(fromDate, toDate),
     ])
     categories.value = categoryData
+    const activeIds = new Set(categoryData.filter((item) => !item.is_deleted).map((item) => item.id))
+    hiddenCategoryIds.value = hiddenCategoryIds.value.filter((id) => activeIds.has(id))
     holidays.value = holidayData.reduce<Record<string, string>>((acc, holiday) => {
       acc[holiday.date] = holiday.name
       return acc
@@ -1137,17 +1163,29 @@ onMounted(async () => {
       </section>
     </section>
 
-    <PcMonthCalendar
+    <div
       v-else-if="viewMode === 'month' && monthDisplayMode === 'calendar-pc'"
-      :current-month="currentMonth"
-      :week-starts-on="weekStartsOn"
-      :holidays="holidays"
-      :schedules="schedules"
-      :category-color-map="categoryColorMap"
-      @open-day="openDayView"
-      @open-edit="openEditDialog"
-      @open-create="openCreateDialog"
-    />
+      class="pc-month-layout"
+    >
+      <CategorySidebar
+        :categories="categories"
+        :hidden-category-ids="hiddenCategoryIds"
+        :show-deleted="showDeletedCategories"
+        @update:show-deleted="onShowDeletedCategoriesChange"
+        @toggle-hidden="toggleHiddenCategory"
+        @changed="onCategoriesChanged"
+      />
+      <PcMonthCalendar
+        :current-month="currentMonth"
+        :week-starts-on="weekStartsOn"
+        :holidays="holidays"
+        :schedules="pcVisibleSchedules"
+        :category-color-map="categoryColorMap"
+        @open-day="openDayView"
+        @open-edit="openEditDialog"
+        @open-create="openCreateDialog"
+      />
+    </div>
 
     <p
       v-else-if="viewMode === 'month' && monthDisplayMode === 'none'"
@@ -1394,7 +1432,7 @@ onMounted(async () => {
       <label>
         カテゴリ
         <select v-model="form.categoryId">
-          <option v-for="category in categories" :key="category.id" :value="String(category.id)">
+          <option v-for="category in activeCategories" :key="category.id" :value="String(category.id)">
             {{ category.name }}
           </option>
         </select>

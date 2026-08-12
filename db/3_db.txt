@@ -1,0 +1,63 @@
+                                            Table "calendar.activity_categories"
+   Column   |            Type             | Collation | Nullable |                         Default
+------------+-----------------------------+-----------+----------+----------------------------------------------------------
+ id         | integer                     |           | not null | nextval('calendar.activity_categories_id_seq'::regclass)
+ name       | character varying           |           | not null |
+ bg_color   | character varying(64)       |           | not null | '#e5e7eb'::character varying
+ is_deleted | boolean                     |           | not null |
+ created_at | timestamp without time zone |           | not null | now()
+ updated_at | timestamp without time zone |           | not null | now()
+Indexes:
+    "activity_categories_pkey" PRIMARY KEY, btree (id)
+    "ix_activity_categories_id" btree (id)
+    "uq_activity_categories_name_active" UNIQUE, btree (name) WHERE is_deleted = false
+Referenced by:
+    TABLE "plan.routine" CONSTRAINT "routine_activity_category_id_fkey" FOREIGN KEY (activity_category_id) REFERENCES calendar.activity_categories(id) ON DELETE RESTRICT
+    TABLE "calendar.schedules" CONSTRAINT "schedules_activity_category_id_fkey" FOREIGN KEY (activity_category_id) REFERENCES calendar.activity_categories(id)
+
+
+                                            Table "calendar.holidays"
+   Column   |            Type             | Collation | Nullable |                    Default
+------------+-----------------------------+-----------+----------+-----------------------------------------------
+ id         | integer                     |           | not null | nextval('calendar.holidays_id_seq'::regclass)
+ date       | date                        |           | not null |
+ name       | character varying           |           | not null |
+ created_at | timestamp without time zone |           |          |
+ updated_at | timestamp without time zone |           |          |
+Indexes:
+    "holidays_pkey" PRIMARY KEY, btree (id)
+    "idx_holidays_date" btree (date)
+    "ix_holidays_date" UNIQUE, btree (date)
+    "ix_holidays_id" btree (id)
+
+
+                                                 Table "calendar.schedules"
+        Column        |            Type             | Collation | Nullable |                    Default
+----------------------+-----------------------------+-----------+----------+------------------------------------------------
+ id                   | integer                     |           | not null | nextval('calendar.schedules_id_seq'::regclass)
+ title                | character varying           |           | not null |
+ start_datetime       | timestamp without time zone |           | not null |
+ duration             | integer                     |           | not null |
+ is_all_day           | boolean                     |           | not null |
+ activity_category_id | integer                     |           | not null |
+ schedule_type        | character varying           |           | not null |
+ location             | character varying           |           |          |
+ details              | text                        |           |          |
+ is_todo_completed    | boolean                     |           | not null |
+ is_deleted           | boolean                     |           | not null |
+ created_at           | timestamp without time zone |           | not null | now()
+ updated_at           | timestamp without time zone |           | not null | now()
+ routine_id           | integer                     |           |          |
+ notified             | boolean                     |           | not null | false
+ aid                  | integer                     |           |          |
+ emailed              | boolean                     |           | not null | false
+Indexes:
+    "schedules_pkey" PRIMARY KEY, btree (id)
+    "ix_schedules_id" btree (id)
+Foreign-key constraints:
+    "fk_schedules_routine" FOREIGN KEY (routine_id) REFERENCES plan.routine(id) ON DELETE SET NULL
+    "schedules_activity_category_id_fkey" FOREIGN KEY (activity_category_id) REFERENCES calendar.activity_categories(id)
+    "schedules_aid_fkey" FOREIGN KEY (aid) REFERENCES accounts(id)
+
+
+

@@ -3,7 +3,10 @@ export type ScheduleType = '予定' | 'TODO'
 export interface ActivityCategory {
   id: number
   name: string
+  bg_color: string
+  is_deleted: boolean
 }
+
 
 export interface Holiday {
   id: number

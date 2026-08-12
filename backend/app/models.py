@@ -20,6 +20,7 @@ class ActivityCategory(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    bg_color: Mapped[str] = mapped_column(String(64), nullable=False, default="#e5e7eb")
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
